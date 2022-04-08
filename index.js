@@ -14,6 +14,7 @@ const client = new Discord.Client({
     ]
 });
 
+
 client.commands    = new Discord.Collection();
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
 
@@ -43,7 +44,8 @@ const requestCrash = 'http://localhost/perso/botDiscord/crash.sh';
 var phrase;
 var nbFeu;
 
-var lastChannelId;
+var lastChannel;
+var lastGuild;
 
 var request = new XMLHttpRequest();
 var motTrigger;
@@ -91,53 +93,23 @@ client.once('ready', () => {
     });
 });
 
+
 client.once('error', c => {
     console.log('Error');
-})
-
-client.on('messageCreate', async message => {
-
-    if (message.author.bot) return;
-
-    if (message.content.startsWith('ping')) {
-        let personneVise = getUserFromMention(message.content.split(' ')[1]);
-        let user = message.author;
-
-        if (personneVise === undefined) return;
-
-        message.reply('<@' + personneVise + '>' + ' T\'as le salut de la part de ' + '<@' + user + '>');
-    }
-
-    if (message.content === 'Rap')
-    {
-        var sRet;
-        for (var i = 0; i < motTrigger.length; i++) 
-            sRet += "\n" + Object.keys(motTrigger[i]).toString() + ' ' + motTrigger[1][Object.keys(motTrigger[i]).toString()];
-        
-        message.author.send(sRet);
-    }
-
 });
+
 
 client.on( 'messageCreate', async message => {
 
     if ( ! message.author.bot ) return;
 
-    console.log( lastChannelId + ' to ->' + message.channel.id);
 
+    lastChannel = message.guild.channels.cache.get(message.channel.id);
 
-    lastChannelId = message.channel.id;
+    lastGuild   = message.guild;
 
+    console.log(lastChannel);
 
-});
-
-client.on('messageCreate', async message => {
-
-   if ( message.attachments.size < 1 ) return;
-
-   console.log(message.attachments);
-
-   
 });
 
 
@@ -171,13 +143,11 @@ client.on('interactionCreate', async (interaction) => {
 
     if ( !interaction.isButton() ) return;
 
-    console.log ( interaction );
-
     if ( interaction.customId === 'ajouter' ) {
+        await creerChannel("tierlist", interaction);
         
-        var chan = interaction.guild.channels.create('channel_tier-list').then( channel => channel.send('Postez votre image dans ce salon') ).then ( chan => console.log(chan.id));
-
         await interaction.update({ content: 'Un channel a été crée', components: [] });
+        await attendreRep(interaction);
     }
 
 });
@@ -198,5 +168,68 @@ function getUserFromMention(mention) {
 
         return client.users.cache.get(mention);
     }
+};
+
+async function sendToJSON( url ) {
+
+    var obj = {
+        url : []
+    };
+
+    obj.url.push({url : url});
+
+    let jsonIn = fs.readFileSync('tierlist.json', 'utf8');
+
+    console.log (jsonIn == "");
+
+    if ( ! jsonIn == "" ) {
+        jsonIn = JSON.parse(jsonIn);
+
+        for ( var cpt = 0; cpt < jsonIn.url.length; cpt++ ) {
+            obj.url.push({url :jsonIn.url[cpt].url});
+        }
+    }
+
+    
+
+    var json = JSON.stringify(obj);
+
+    fs.writeFile('tierlist.json', json, err => {
+        
+        console.log("New data added");
+    });
+
+};
+
+async function attendreRep( interaction ) {
+
+    console.log( interaction.guild.channels.cache.get(lastChannelId) );
+    /*const collecteur = new Discord.MessageCollector(interaction.guild.channels.cache.get(lastChannelId));
+    console.log(collecteur);
+    collecteur.on ( 'collect', message => {
+        if ( message.attachments.size > 0 ) {
+            sendToJSON(message.attachments.first().url);
+            collecteur.channel.delete();
+        } else {
+            collecteur.channel.delete();
+            return;
+        }
+    })*/
 }
+
+async function creerChannel( nom, interaction ) {
+
+    
+
+    var chan = await interaction.guild.channels  .create('channel_tier-list')
+                                .then( channel => channel.send('Postez votre image dans ce salon') );
+
+    console.log(lastGuild   );
+
+    lastChannel = lastGuild.guild.channels.cache.get(chan.id);
+
+    console.log( "creer channel :" +  lastChannel );
+    
+}
+
 
