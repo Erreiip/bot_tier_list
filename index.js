@@ -1,4 +1,4 @@
-const XMLHttpRequest = require('xhr2');
+
 
 const fs                           = require('node:fs');
 const Discord                      = require('discord.js');
@@ -32,24 +32,17 @@ const path = require('path');
 const { channel } = require('node:diagnostics_channel');
 
 
-const requestMots  = 'http://localhost/perso/botDiscord/motTrigger.jsonc';
-const requestCrash = 'http://localhost/perso/botDiscord/crash.sh';
-
-
 
 //------------------------------------------------------------//
 //                 Données                                    //
 //------------------------------------------------------------//
 
-var phrase;
 var nbFeu;
 
-var lastChannel;
 var lastGuild;
 
 var request = new XMLHttpRequest();
 var motTrigger;
-var fichierCrash;
 
 
 //------------------------------------------------------------//
@@ -95,7 +88,7 @@ client.once('ready', () => {
 
 
 client.once('error', c => {
-    console.log('Error');
+    console.log('Error' + c);
 });
 
 
@@ -104,11 +97,11 @@ client.on( 'messageCreate', async message => {
     if ( ! message.author.bot ) return;
 
 
-    lastChannel = message.guild.channels.cache.get(message.channel.id);
+    lastChannelId = message.channel.id;
 
     lastGuild   = message.guild;
 
-    console.log(lastChannel);
+    console.log(lastChannelId);
 
 });
 
@@ -144,14 +137,26 @@ client.on('interactionCreate', async (interaction) => {
     if ( !interaction.isButton() ) return;
 
     if ( interaction.customId === 'ajouter' ) {
-        await creerChannel("tierlist", interaction);
+        const chan = await creerChannel("tierlist", interaction);
         
         await interaction.update({ content: 'Un channel a été crée', components: [] });
-        await attendreRep(interaction);
+        await attendreRep( chan );
+    }
+
+    if ( interaction.customId === 'regarder' ) {
+    
+        let jsonIn = fs.readFileSync('tierlist.json', 'utf8');
+
+        if ( ! jsonIn == "" ) {
+            jsonIn = JSON.parse(jsonIn);
+
+            for ( var cpt = 0; cpt < jsonIn.url.length; cpt++ ) {
+                interaction.channel.send(jsonIn.url[cpt].url);
+            }
+        }
     }
 
 });
-
 
 
 
@@ -180,8 +185,6 @@ async function sendToJSON( url ) {
 
     let jsonIn = fs.readFileSync('tierlist.json', 'utf8');
 
-    console.log (jsonIn == "");
-
     if ( ! jsonIn == "" ) {
         jsonIn = JSON.parse(jsonIn);
 
@@ -189,8 +192,6 @@ async function sendToJSON( url ) {
             obj.url.push({url :jsonIn.url[cpt].url});
         }
     }
-
-    
 
     var json = JSON.stringify(obj);
 
@@ -201,34 +202,29 @@ async function sendToJSON( url ) {
 
 };
 
-async function attendreRep( interaction ) {
+async function attendreRep( chan ) {
 
-    console.log( interaction.guild.channels.cache.get(lastChannelId) );
-    /*const collecteur = new Discord.MessageCollector(interaction.guild.channels.cache.get(lastChannelId));
-    console.log(collecteur);
+    const collecteur = new Discord.MessageCollector(chan);
     collecteur.on ( 'collect', message => {
         if ( message.attachments.size > 0 ) {
             sendToJSON(message.attachments.first().url);
-            collecteur.channel.delete();
+            chan.delete();
         } else {
-            collecteur.channel.delete();
+            chan.delete();
             return;
         }
-    })*/
+    });
 }
 
 async function creerChannel( nom, interaction ) {
 
-    
+    var chan = await interaction.guild.channels  .create(nom);
 
-    var chan = await interaction.guild.channels  .create('channel_tier-list')
-                                .then( channel => channel.send('Postez votre image dans ce salon') );
+    chan.send( 'Postez cette image dans le salon' );
 
-    console.log(lastGuild   );
+    lastChannelId = chan.id;
 
-    lastChannel = lastGuild.guild.channels.cache.get(chan.id);
-
-    console.log( "creer channel :" +  lastChannel );
+    return chan;
     
 }
 
