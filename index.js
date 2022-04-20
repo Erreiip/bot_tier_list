@@ -2,6 +2,7 @@
 
 const fs                           = require('node:fs');
 const Discord                      = require('discord.js');
+const { Permissions } = require('discord.js');
 const { token, guildId, clientId } = require('./config.json');
 
 const client = new Discord.Client({
@@ -28,10 +29,6 @@ const { MessageMentions: { USERS_PATTERN } } = require('discord.js');
 const { MessageActionRow, MessageButton } = require('discord.js');
 
 
-const path = require('path');
-const { channel } = require('node:diagnostics_channel');
-
-
 
 //------------------------------------------------------------//
 //                 Données                                    //
@@ -41,8 +38,9 @@ var nbFeu;
 
 var lastGuild;
 
-var request = new XMLHttpRequest();
 var motTrigger;
+
+let authorLastInteraction;
 
 
 //------------------------------------------------------------//
@@ -53,16 +51,6 @@ var motTrigger;
 
 client.login(token);
 
-nbFeu = 0;
-request.open('GET', requestMots);
-request.responseType = 'json';
-request.send();
-
-request.onload = function() {
-    motTrigger = request.response;
-}
-
-
 
 client.once('ready', () => {
     console.log('SSHHHESSSHHHH');
@@ -70,8 +58,6 @@ client.once('ready', () => {
     client.user.setUsername('Gobelin Royal');
 
     const guild = client.guilds.cache.get(guildId);
-
-    let commands
 
     if ( guild ) {
         commands = guild.commands;
@@ -84,12 +70,12 @@ client.once('ready', () => {
         description : 'permet d\'ajouter ou regarder les tier list faites'
 
     });
-});
+})
 
 
 client.once('error', c => {
     console.log('Error' + c);
-});
+})
 
 
 client.on( 'messageCreate', async message => {
@@ -100,10 +86,7 @@ client.on( 'messageCreate', async message => {
     lastChannelId = message.channel.id;
 
     lastGuild   = message.guild;
-
-    console.log(lastChannelId);
-
-});
+})
 
 
 client.on('interactionCreate', async (interaction) => {
@@ -129,18 +112,24 @@ client.on('interactionCreate', async (interaction) => {
 			);
 
 		await interaction.reply({ content: 'Choisir', components: [row] });
+
+        authorLastInteraction = interaction.user.id;
 	}
-});
+})
 
 client.on('interactionCreate', async (interaction) => {
 
     if ( !interaction.isButton() ) return;
 
     if ( interaction.customId === 'ajouter' ) {
+
         const chan = await creerChannel("tierlist", interaction);
-        
-        await interaction.update({ content: 'Un channel a été crée', components: [] });
+
+        await interaction.update({ content: 'delete', components: [] });
+
         await attendreRep( chan );
+
+
     }
 
     if ( interaction.customId === 'regarder' ) {
@@ -154,26 +143,22 @@ client.on('interactionCreate', async (interaction) => {
                 interaction.channel.send(jsonIn.url[cpt].url);
             }
         }
+
+        await interaction.update({ content: 'delete', components: [] });
     }
 
-});
+})
 
 
+client.on('messageUpdate', message => {
 
-function getUserFromMention(mention) {
+    if ( !message.author.bot ) return;
+    
+    message.delete();
 
-    if (!mention) return;
+    return;
+})
 
-    if (mention.startsWith('<@') && mention.endsWith('>')) {
-        mention = mention.slice(2, -1);
-
-        if (mention.startsWith('!')) {
-            mention = mention.slice(1);
-        }
-
-        return client.users.cache.get(mention);
-    }
-};
 
 async function sendToJSON( url ) {
 
@@ -197,10 +182,10 @@ async function sendToJSON( url ) {
 
     fs.writeFile('tierlist.json', json, err => {
         
-        console.log("New data added");
+        console.log('ajouté');
     });
 
-};
+}
 
 async function attendreRep( chan ) {
 
@@ -216,11 +201,23 @@ async function attendreRep( chan ) {
     });
 }
 
-async function creerChannel( nom, interaction ) {
+async function creerChannel( nom, interaction) {
 
-    var chan = await interaction.guild.channels  .create(nom);
+    var chan = await interaction.guild.channels  .create(nom, {
+        type: 'GUILD_TEXT',
+        permissionOverwrites: [
+            {
+                id: interaction.guild.id,
+                deny: [Permissions.FLAGS.VIEW_CHANNEL],
+            },
+            {
+                id: authorLastInteraction,
+                allow: [Permissions.FLAGS.VIEW_CHANNEL],
+            },
+        ],
+    });
 
-    chan.send( 'Postez cette image dans le salon' );
+    chan.send( 'Poste ton image ici @here'  );
 
     lastChannelId = chan.id;
 
