@@ -27,6 +27,8 @@ for (const file of commandFiles) {
 const { MessageMentions: { USERS_PATTERN } } = require('discord.js');
 
 const { MessageActionRow, MessageButton } = require('discord.js');
+const setlien = require('./commands/setlien');
+const { exit } = require('node:process');
 
 
 
@@ -70,6 +72,12 @@ client.once('ready', () => {
         description : 'permet d\'ajouter ou regarder les tier list faites'
 
     });
+
+    commands?.create({
+        name        : 'setlien',
+        description : 'change le lien des tier-list'
+
+    });
 })
 
 
@@ -81,7 +89,6 @@ client.once('error', c => {
 client.on( 'messageCreate', async message => {
 
     if ( ! message.author.bot ) return;
-
 
     lastChannelId = message.channel.id;
 
@@ -97,26 +104,69 @@ client.on('interactionCreate', async (interaction) => {
 
 	if (!command) return;
 
+
     if (interaction.commandName === 'tierlist') {
 
-		const row = new MessageActionRow()  
-			.addComponents(
-				new MessageButton()
-					.setCustomId('ajouter')
-					.setLabel('Ajouter Tier List')
-					.setStyle('PRIMARY'),
-                new MessageButton()
-					.setCustomId('regarder')
-					.setLabel('Regarder Tier List')
-					.setStyle('SUCCESS'),
-                new MessageButton()
-                    .setCustomId('supprimer')
-					.setLabel('Supprimer les Tier List')
-					.setStyle('DANGER'),
-			);
+        let row;
 
-		await interaction.reply({ content: 'Choisir', components: [row] });
+        try {
+		        row = new MessageActionRow()  
+			    .addComponents(
+				    new MessageButton()
+					    .setCustomId('ajouter')
+					    .setLabel('Ajouter tier-List')
+                        .setStyle('PRIMARY'),
+                    new MessageButton()
+                        .setCustomId('regarder')
+                        .setLabel('Regarder tier-List')
+                        .setStyle('SUCCESS'),
+                    new MessageButton()
+                        .setCustomId('supprimer')
+                        .setLabel('Supprimer les tier-List')
+                        .setStyle('DANGER'),
+                    new MessageButton()                    
+                        .setLabel('Faire ta tier-List')
+                        .setStyle('LINK')   
+                        .setURL( getLien() ),
+                );
+
+		        await interaction.reply({ content: 'Choisir', components: [row] });
+
+
+            } catch(erreur) {
+                let icon = interaction.guild.iconURL();
+
+                if ( icon != null)
+                    setLien(icon);
+
+                await interaction.reply(' pas de lien correct');
+
+                return;
+            }
+
 	}
+
+
+    if ( interaction.user.id === '697805177658540043' ) return; // empécher floris d'utiliser la commande suivante
+
+
+    if ( interaction.commandName === 'setlien' ) {
+
+        await interaction.reply({ content : 'Mettre le lien' });
+
+        const collecteur = interaction.channel.createMessageCollector({  max: 1 })
+        collecteur.on ( 'collect', m => {
+            if ( m.author.id === interaction.user.id )
+                setLien( m.content )
+        });
+
+        collecteur.on('end', m => {
+            interaction.deleteReply();
+            m.delete();
+        });
+
+
+    }
 })
 
 client.on('interactionCreate', async (interaction) => {
@@ -212,6 +262,7 @@ async function attendreRep( chan ) {
         if ( message.attachments.size > 0 ) {
             sendToJSON(message.attachments.first().url);
             chan.delete();
+            return;
         } else {
             chan.delete();
             return;
@@ -324,6 +375,21 @@ function enregistrer() {
     var json = JSON.stringify(obj);
 
     fs.writeFile('sauvegardetierlist.json', json, err => {
+        
+        console.log('ajouté');
+    });
+}
+
+function getLien() {
+
+    let lienTxt = fs.readFileSync('lien.txt', 'utf8');
+
+    return lienTxt.toString();
+}
+
+function setLien( url ) {
+
+    fs.writeFile('lien.txt', url, err => {
         
         console.log('ajouté');
     });
