@@ -104,16 +104,18 @@ client.on('interactionCreate', async (interaction) => {
 				new MessageButton()
 					.setCustomId('ajouter')
 					.setLabel('Ajouter Tier List')
-					.setStyle('SUCCESS'),
+					.setStyle('PRIMARY'),
                 new MessageButton()
 					.setCustomId('regarder')
 					.setLabel('Regarder Tier List')
+					.setStyle('SUCCESS'),
+                new MessageButton()
+                    .setCustomId('supprimer')
+					.setLabel('Supprimer les Tier List')
 					.setStyle('DANGER'),
 			);
 
 		await interaction.reply({ content: 'Choisir', components: [row] });
-
-        authorLastInteraction = interaction.user.id;
 	}
 })
 
@@ -133,6 +135,8 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if ( interaction.customId === 'regarder' ) {
+
+        melanger();
     
         let jsonIn = fs.readFileSync('tierlist.json', 'utf8');
 
@@ -147,14 +151,28 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.update({ content: 'delete', components: [] });
     }
 
+    if ( interaction.customId === 'supprimer' ) {
+
+        if ( !interaction.member.permissions.has(Permissions.FLAGS.MANAGE_MESSAGES) ) return;
+
+        enregistrer();
+
+        fs.writeFile('tierlist.json', '', err => {
+        
+            console.log('ajouté');
+        });
+
+        await interaction.update({ content: 'delete', components: [] });
+    }
 })
 
 
 client.on('messageUpdate', message => {
 
     if ( !message.author.bot ) return;
-    
-    message.delete();
+
+    if ( message.content == 'Choisir' )
+        message.delete();
 
     return;
 })
@@ -203,7 +221,7 @@ async function attendreRep( chan ) {
 
 async function creerChannel( nom, interaction) {
 
-    var chan = await interaction.guild.channels  .create(nom, {
+    var chan = await interaction.guild.channels.create(nom, {
         type: 'GUILD_TEXT',
         permissionOverwrites: [
             {
@@ -211,7 +229,7 @@ async function creerChannel( nom, interaction) {
                 deny: [Permissions.FLAGS.VIEW_CHANNEL],
             },
             {
-                id: authorLastInteraction,
+                id: interaction.user.id,
                 allow: [Permissions.FLAGS.VIEW_CHANNEL],
             },
         ],
@@ -225,4 +243,88 @@ async function creerChannel( nom, interaction) {
     
 }
 
+async function melanger() {
 
+    var obj = {
+        url : []
+    };
+
+    let jsonIn = fs.readFileSync('tierlist.json', 'utf8');
+
+    if ( ! jsonIn == "" ) {
+        jsonIn = JSON.parse(jsonIn);
+
+
+        var tabNbr = [];
+
+        for ( var cpt = 0; cpt < jsonIn.url.length; cpt++ ) 
+            tabNbr.push(cpt);
+
+        randomiser(tabNbr);
+
+        for ( var cpt = 0; cpt < jsonIn.url.length; cpt++ ) {
+            obj.url.push({url :jsonIn.url[tabNbr[cpt]].url});
+        }
+
+        var json = JSON.stringify(obj);
+
+        fs.writeFile('tierlist.json', json, err => {
+            
+            console.log('ajouté');
+        });
+    }
+}
+
+
+function randomiser( tab ) {
+
+    var longueur = tab.length;  
+    var index   ;
+    var valIndex;
+
+    while ( longueur != 0 ) {
+
+        index    = Math.floor(Math.random() * longueur);
+        valIndex = tab[index];
+
+        longueur--;
+
+        tab[index] = tab[longueur];
+
+        tab[longueur] = valIndex;  
+ 
+    }
+}
+
+function enregistrer() {
+    var obj = {
+        url : []
+    };
+
+    let jsonIn = fs.readFileSync('tierlist.json', 'utf8');
+
+    if ( ! jsonIn == "" ) {
+        jsonIn = JSON.parse(jsonIn);
+
+        for ( var cpt = 0; cpt < jsonIn.url.length; cpt++ ) {
+            obj.url.push({url :jsonIn.url[cpt].url});
+        }
+    }
+
+    jsonIn = fs.readFileSync('sauvegardetierlist.json', 'utf8');
+
+    if ( ! jsonIn == "" ) {
+        jsonIn = JSON.parse(jsonIn);
+
+        for ( var cpt = 0; cpt < jsonIn.url.length; cpt++ ) {
+            obj.url.push({url :jsonIn.url[cpt].url});
+        }
+    }
+
+    var json = JSON.stringify(obj);
+
+    fs.writeFile('sauvegardetierlist.json', json, err => {
+        
+        console.log('ajouté');
+    });
+}
