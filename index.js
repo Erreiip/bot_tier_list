@@ -46,13 +46,13 @@ let idChannel;
 //------------------------------------------------------------//
 
 
-
+    
 client.login(token);
 
 
 client.once('ready', () => {
-    client.user.setActivity(' faire des jeux de mots');
-    client.user.setUsername('Gobelin Royal');
+    client.user.setActivity('chasser des bf');
+    client.user.setUsername('Tier-List');
 
     const guild = client.guilds.cache.get(guildId);
 
@@ -267,17 +267,15 @@ async function attendreRep( chan ) {
 
     const collecteur = chan.createMessageCollector({  max: 2, time: 10000 });
     collecteur.on ( 'collect', message => {
-        if ( message.author.bot ) return;
-        
-        if ( message.attachments.size > 0 ) {
-            sendToJSON(message.attachments.first().url);
-            chan.delete();
-            return;
-        } else {
-            chan.delete();
-            return;
+        if ( ! message.author.bot ) {
+            if ( message.attachments.size > 0 ) 
+                sendToJSON(message.attachments.first().url);
         }
     });
+
+    collecteur.on('end', message => {
+        chan.delete();
+    })
 }
 
 async function creerChannel( nom, interaction, message) {
@@ -428,7 +426,7 @@ async function messageavecButton( interaction) {
                 .setURL( getLien() ),
         );
 
-       return row;
+       return await row;
 
 
     } catch(erreur) {
@@ -437,7 +435,7 @@ async function messageavecButton( interaction) {
         if ( icon != null)
             setLien(icon);
 
-        row = new MessageActionRow()  
+        row = await new MessageActionRow()  
         .addComponents(
             new MessageButton()
                 .setCustomId('ajouter')
@@ -450,10 +448,10 @@ async function messageavecButton( interaction) {
             new MessageButton()
                 .setCustomId('supprimer')
                 .setLabel('Supprimer les tier-List')
-                .setStyle('DANGER'),);
+                .setStyle('DANGER'),
+        );
+
+        return await row;
     }
-
-    return row;
-
 
 }
