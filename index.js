@@ -36,13 +36,9 @@ const { exit } = require('node:process');
 //                 Données                                    //
 //------------------------------------------------------------//
 
-var nbFeu;
-
 var lastGuild;
 
-var motTrigger;
-
-let authorLastInteraction;
+let idChannel;
 
 
 //------------------------------------------------------------//
@@ -55,7 +51,6 @@ client.login(token);
 
 
 client.once('ready', () => {
-    console.log('SSHHHESSSHHHH');
     client.user.setActivity(' faire des jeux de mots');
     client.user.setUsername('Gobelin Royal');
 
@@ -78,6 +73,25 @@ client.once('ready', () => {
         description : 'change le lien des tier-list'
 
     });
+
+    commands?.create({
+        name        : 'setchannel',
+        description : 'définit le channel'
+
+    });
+
+    idChannel = fs.readFileSync('channel.txt', 'utf8');
+
+    if ( ! idChannel == '' )
+    {
+        try {
+
+            let chan = guild.channels.cache.get(idChannel);
+            
+        } catch (erreur) {}
+        
+    }
+
 })
 
 
@@ -104,45 +118,28 @@ client.on('interactionCreate', async (interaction) => {
 
 	if (!command) return;
 
+    if ( !interaction.channel.name.includes("tier-list") ) return;
+
+
+    if ( interaction.commandName === 'setchannel' ) {
+
+        fs.writeFile('channel.txt', interaction.channel.id, err => {
+        
+            console.log('ajouté');
+        });
+
+        let row = await messageavecButton(interaction);
+
+        await interaction.reply({ content: 'Choisir', components: [row] });
+    }
+
 
     if (interaction.commandName === 'tierlist') {
 
-        let row;
+        let row = await messageavecButton(interaction);
 
-        try {
-		        row = new MessageActionRow()  
-			    .addComponents(
-				    new MessageButton()
-					    .setCustomId('ajouter')
-					    .setLabel('Ajouter tier-List')
-                        .setStyle('PRIMARY'),
-                    new MessageButton()
-                        .setCustomId('regarder')
-                        .setLabel('Regarder tier-List')
-                        .setStyle('SUCCESS'),
-                    new MessageButton()
-                        .setCustomId('supprimer')
-                        .setLabel('Supprimer les tier-List')
-                        .setStyle('DANGER'),
-                    new MessageButton()                    
-                        .setLabel('Faire ta tier-List')
-                        .setStyle('LINK')   
-                        .setURL( getLien() ),
-                );
-
-		        await interaction.reply({ content: 'Choisir', components: [row] });
-
-
-            } catch(erreur) {
-                let icon = interaction.guild.iconURL();
-
-                if ( icon != null)
-                    setLien(icon);
-
-                await interaction.reply(' pas de lien correct');
-
-                return;
-            }
+        
+        await interaction.reply({ content: 'Choisir', components: [row] });
 
 	}
 
@@ -154,7 +151,7 @@ client.on('interactionCreate', async (interaction) => {
 
         await interaction.reply({ content : 'Mettre le lien' });
 
-        const collecteur = interaction.channel.createMessageCollector({  max: 1 })
+        const collecteur = interaction.channel.createMessageCollector({  max: 1, time: 10000 })
         collecteur.on ( 'collect', m => {
             if ( m.author.id === interaction.user.id )
                 setLien( m.content )
@@ -162,7 +159,9 @@ client.on('interactionCreate', async (interaction) => {
 
         collecteur.on('end', m => {
             interaction.deleteReply();
-            m.delete();
+
+            if ( m != null )
+                m.delete();
         });
 
 
@@ -173,20 +172,22 @@ client.on('interactionCreate', async (interaction) => {
 
     if ( !interaction.isButton() ) return;
 
+
     if ( interaction.customId === 'ajouter' ) {
 
-        const chan = await creerChannel("tierlist", interaction);
-
-        await interaction.update({ content: 'delete', components: [] });
+        const chan = await creerChannel("tierlist", interaction, 'Poste ton image ici @here');
 
         await attendreRep( chan );
 
+        await interaction.deferUpdate();
 
     }
 
     if ( interaction.customId === 'regarder' ) {
 
         melanger();
+
+        const chan = await creerChannel("tierlist", interaction, '@here');
     
         let jsonIn = fs.readFileSync('tierlist.json', 'utf8');
 
@@ -194,11 +195,17 @@ client.on('interactionCreate', async (interaction) => {
             jsonIn = JSON.parse(jsonIn);
 
             for ( var cpt = 0; cpt < jsonIn.url.length; cpt++ ) {
-                interaction.channel.send(jsonIn.url[cpt].url);
+                chan.send(jsonIn.url[cpt].url);
             }
+
         }
 
-        await interaction.update({ content: 'delete', components: [] });
+        setTimeout(function(){
+            chan.delete()
+        }, 10000); 
+
+        await interaction.deferUpdate();
+        
     }
 
     if ( interaction.customId === 'supprimer' ) {
@@ -212,7 +219,8 @@ client.on('interactionCreate', async (interaction) => {
             console.log('ajouté');
         });
 
-        await interaction.update({ content: 'delete', components: [] });
+        await interaction.deferUpdate();
+
     }
 })
 
@@ -257,8 +265,10 @@ async function sendToJSON( url ) {
 
 async function attendreRep( chan ) {
 
-    const collecteur = new Discord.MessageCollector(chan);
+    const collecteur = chan.createMessageCollector({  max: 2, time: 10000 });
     collecteur.on ( 'collect', message => {
+        if ( message.author.bot ) return;
+        
         if ( message.attachments.size > 0 ) {
             sendToJSON(message.attachments.first().url);
             chan.delete();
@@ -270,7 +280,7 @@ async function attendreRep( chan ) {
     });
 }
 
-async function creerChannel( nom, interaction) {
+async function creerChannel( nom, interaction, message) {
 
     var chan = await interaction.guild.channels.create(nom, {
         type: 'GUILD_TEXT',
@@ -286,7 +296,7 @@ async function creerChannel( nom, interaction) {
         ],
     });
 
-    chan.send( 'Poste ton image ici @here'  );
+    chan.send( message );
 
     lastChannelId = chan.id;
 
@@ -393,4 +403,57 @@ function setLien( url ) {
         
         console.log('ajouté');
     });
+}
+
+async function messageavecButton( interaction) {
+    
+    try {
+        row = await new MessageActionRow()  
+        .addComponents(
+            new MessageButton()
+                .setCustomId('ajouter')
+                .setLabel('Ajouter tier-List')
+                .setStyle('PRIMARY'),
+            new MessageButton()
+                .setCustomId('regarder')
+                .setLabel('Regarder tier-List')
+                .setStyle('SUCCESS'),
+            new MessageButton()
+                .setCustomId('supprimer')
+                .setLabel('Supprimer les tier-List')
+                .setStyle('DANGER'),
+            new MessageButton()                    
+                .setLabel('Faire ta tier-List')
+                .setStyle('LINK')   
+                .setURL( getLien() ),
+        );
+
+       return row;
+
+
+    } catch(erreur) {
+        let icon = interaction.guild.iconURL();
+
+        if ( icon != null)
+            setLien(icon);
+
+        row = new MessageActionRow()  
+        .addComponents(
+            new MessageButton()
+                .setCustomId('ajouter')
+                .setLabel('Ajouter tier-List')
+                .setStyle('PRIMARY'),
+            new MessageButton()
+                .setCustomId('regarder')
+                .setLabel('Regarder tier-List')
+                .setStyle('SUCCESS'),
+            new MessageButton()
+                .setCustomId('supprimer')
+                .setLabel('Supprimer les tier-List')
+                .setStyle('DANGER'),);
+    }
+
+    return row;
+
+
 }
